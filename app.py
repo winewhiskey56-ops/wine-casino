@@ -22,10 +22,10 @@ if "current_wine" not in st.session_state: st.session_state.current_wine = {}
 if "bet_rows_count" not in st.session_state: st.session_state.bet_rows_count = 1
 
 def header():
-    cols = st.columns([1, 2, 1]) # Центрируем логотип и делаем его меньше
+    cols = st.columns([1, 2, 1])
     with cols[1]:
         try:
-            st.image("logo.png", width=300) # Фиксированная ширина для аккуратности
+            st.image("logo.png", width=300)
         except:
             st.write("### WINE & WHISKEY")
     st.markdown("---")
@@ -46,7 +46,7 @@ def add_player():
 def show_registration():
     header()
     st.markdown("<h2 style='text-align: center;'>📝 Регистрация</h2>", unsafe_allow_html=True)
-    st.text_input("Имя игрока:", key="temp_name", on_change=add_player)
+    st.text_input("Имя игрока:", key="temp_name", on_change=add_player, placeholder="Введите имя и нажмите Enter")
     
     if st.session_state.players:
         for p in st.session_state.players:
@@ -75,16 +75,18 @@ def show_setup():
 
 def show_betting():
     header()
-    player = st.session_state.players[st.session_state.current_player_idx]
+    p_idx = st.session_state.current_player_idx
+    player = st.session_state.players[p_idx]
     
-    # Считаем текущие затраты ПЕРЕД отрисовкой, чтобы обновить баланс в реальном времени
+    # Динамический расчет баланса
     temp_spent = 0
     valid_bets = []
     for i in range(st.session_state.bet_rows_count):
-        # Собираем данные из виджетов, если они уже существуют
-        c_cat = st.session_state.get(f"b_cat_{i}")
-        c_amt = st.session_state.get(f"b_amt_{i}", 0)
-        c_val = st.session_state.get(f"b_val_{i}", "—")
+        # Используем префикс p{p_idx}, чтобы ключи были уникальны для каждого игрока
+        c_cat = st.session_state.get(f"p{p_idx}_cat_{i}", "Сладость")
+        c_val = st.session_state.get(f"p{p_idx}_val_{i}", "—")
+        c_amt = st.session_state.get(f"p{p_idx}_amt_{i}", 0)
+        
         if c_val != "—" and c_amt > 0:
             temp_spent += c_amt
             valid_bets.append({"cat": c_cat, "val": c_val, "amt": c_amt})
@@ -98,13 +100,13 @@ def show_betting():
     for i in range(st.session_state.bet_rows_count):
         c1, c2, c3 = st.columns([2, 2, 1])
         with c1: 
-            cat = st.selectbox(f"Тип", list(COEFFS.keys()), key=f"b_cat_{i}")
+            cat = st.selectbox(f"Тип", list(COEFFS.keys()), key=f"p{p_idx}_cat_{i}")
         with c2: 
-            val = st.selectbox(f"Вариант", ["—"] + DATA[cat], key=f"b_val_{i}")
+            val = st.selectbox(f"Вариант", ["—"] + DATA[cat], key=f"p{p_idx}_val_{i}")
         with c3: 
-            amt = st.number_input(f"Сумма", min_value=0, step=50, key=f"b_amt_{i}")
+            amt = st.number_input(f"Сумма", min_value=0, step=50, key=f"p{p_idx}_amt_{i}")
             
-        # Если последняя строка заполнена — добавляем новую
+        # Условие появления новой строки: текущая последняя строка заполнена корректно
         if i == st.session_state.bet_rows_count - 1 and val != "—" and amt > 0:
             st.session_state.bet_rows_count += 1
             st.rerun()
@@ -116,14 +118,12 @@ def show_betting():
             st.warning("Нет ставок")
         else:
             player['round_bets'] = valid_bets
-            player['balance'] = real_time_balance # Вычитаем только реально поставленное
+            player['balance'] = real_time_balance
             
+            # Переход к следующему игроку
             if st.session_state.current_player_idx < len(st.session_state.players) - 1:
                 st.session_state.current_player_idx += 1
-                st.session_state.bet_rows_count = 1
-                # Очищаем ключи виджетов для следующего игрока
-                for key in list(st.session_state.keys()):
-                    if key.startswith("b_"): del st.session_state[key]
+                st.session_state.bet_rows_count = 1 # Сброс количества строк для нового игрока
             else:
                 st.session_state.page = "results"
             st.rerun()
@@ -132,15 +132,15 @@ def show_results():
     header()
     st.markdown("<h2 style='text-align: center;'>📊 Итоги</h2>", unsafe_allow_html=True)
     
-    # Правильное вино
     correct = st.session_state.current_wine
-    st.info("🎯 Вино: " + " | ".join([f"{k}: {v}" for k, v in correct.items() if v != "—"]))
+    st.info("🎯 Вино: " + " | ".join([f"**{k}**: {v}" for k, v in correct.items() if v != "—"]))
     
     for p in st.session_state.players:
         win_sum = 0
         details = []
         for b in p['round_bets']:
-            is_hit = b['val'] == correct.get(b['cat'])
+            # Жесткое сравнение значений
+            is_hit = str(b['val']).strip().lower() == str(correct.get(b['cat'])).strip().lower()
             res_amt = b['amt'] * COEFFS[b['cat']] if is_hit else 0
             win_sum += res_amt
             icon = "✅" if is_hit else "❌"
@@ -150,20 +150,23 @@ def show_results():
         balance_after = p['balance'] + win_sum
         
         with st.expander(f"👤 {p['name']} | Выигрыш: +{win_sum}"):
-            st.markdown("".join(details), unsafe_allow_html=True)
+            st.markdown("".join(details) if details else "Ставок не было", unsafe_allow_html=True)
             st.markdown("---")
             st.write(f"💰 До раунда: {p['balance_at_start']}")
             st.write(f"💳 Итог раунда: {balance_after}")
-            p['balance'] = balance_after # Сохраняем итоговый баланс
+            p['balance'] = balance_after 
 
-    if st.button("Следующий раунд 🍷", use_container_width=True):
+    c1, c2 = st.columns(2)
+    if c1.button("Следующий раунд 🍷", use_container_width=True):
         st.session_state.round_num += 1
         st.session_state.page = "setup"
-        # Очистка ставок
-        for p in st.session_state.players: p['round_bets'] = []
+        # Полная очистка временных данных ставок перед новым раундом
+        for key in list(st.session_state.keys()):
+            if "_cat_" in key or "_val_" in key or "_amt_" in key:
+                del st.session_state[key]
         st.rerun()
     
-    if st.button("Завершить игру 🏆", use_container_width=True):
+    if c2.button("Завершить игру 🏆", use_container_width=True):
         st.session_state.page = "final"
         st.rerun()
 
@@ -173,14 +176,13 @@ def show_final():
     sorted_p = sorted(st.session_state.players, key=lambda x: x['balance'], reverse=True)
     for i, p in enumerate(sorted_p):
         st.subheader(f"{i+1}. {p['name']} — {p['balance']}")
-    if st.button("Новая игра"):
+    if st.button("Новая игра", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
-# Навигация
-page = st.session_state.page
-if page == "registration": show_registration()
-elif page == "setup": show_setup()
-elif page == "betting": show_betting()
-elif page == "results": show_results()
-elif page == "final": show_final()
+# Запуск навигации
+if st.session_state.page == "registration": show_registration()
+elif st.session_state.page == "setup": show_setup()
+elif st.session_state.page == "betting": show_betting()
+elif st.session_state.page == "results": show_results()
+elif st.session_state.page == "final": show_final()

@@ -13,56 +13,63 @@ DATA = {
 
 COEFFS = {"Сладость": 2, "Выдержка": 2, "Страна": 3, "Сорт винограда": 3, "Градус": 4, "Год урожая": 5}
 
-# --- УНИВЕРСАЛЬНАЯ НАСТРОЙКА Gemini ИИ ---
-try:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY)
-    
-    # Список моделей в порядке приоритета
-    available_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
-    model = None
-    
-    # Пытаемся инициализировать первую доступную модель
-    for m_name in available_models:
-        try:
-            model = genai.GenerativeModel(m_name)
-            # Пробный запрос (необязательно, но для надежности)
-            break 
-        except:
-            continue
-except Exception as e:
-    model = None
-    st.error(f"Критическая ошибка настройки ИИ: {e}")
+# --- СУПЕР-СТАБИЛЬНАЯ НАСТРОЙКА Gemini ИИ ---
+def initialize_ai():
+    try:
+        if "GEMINI_API_KEY" not in st.secrets:
+            return None, "Ключ API не найден в Secrets"
+        
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        
+        # Пытаемся получить список моделей, доступных для твоего ключа
+        # Это исключит 404, так как мы выберем только то, что существует
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if not available_models:
+            return None, "Нет доступных моделей для этого ключа"
+
+        # Выбираем лучшую из доступных (предпочитаем flash или pro)
+        selected_model = None
+        for preferred in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']:
+            if preferred in available_models:
+                selected_model = preferred
+                break
+        
+        if not selected_model:
+            selected_model = available_models[0] # Берем любую первую рабочую
+            
+        return genai.GenerativeModel(selected_model), f"Используется модель: {selected_model}"
+    except Exception as e:
+        return None, f"Ошибка инициализации: {str(e)}"
+
+# Инициализируем один раз за сессию
+if "ai_model" not in st.session_state:
+    model, status = initialize_ai()
+    st.session_state.ai_model = model
+    st.session_state.ai_status = status
 
 def get_ai_hint(target_type, target_value):
-    if not model: 
-        return "ИИ не доступен. Проверьте ключи в Secrets."
+    model = st.session_state.ai_model
+    if not model:
+        return f"ИИ недоступен. {st.session_state.ai_status}"
     
     prompt = f"""
-    Ты — эксперт-сомелье мирового класса. Мы играем в винное казино. 
-    Дай изысканный и тонкий намек игрокам про {target_type}: {target_value}.
-    
-    ПРАВИЛА:
-    1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО называть само слово '{target_value}' или его части.
-    2. Избегай банальностей (флаги, очертания границ, столицы).
-    3. Описывай через терруар, почвы (сланец, известняк), климатические особенности или легендарные винодельческие регионы этой категории.
-    4. Максимум 30 слов. Будь загадочным.
+    Ты — элитный сомелье. Дай загадочный намек на {target_type} '{target_value}'.
+    ПРАВИЛА: 
+    - Не называй слово '{target_value}'.
+    - Описывай через терруар, ароматику или климат.
+    - Никаких столиц, флагов и границ.
+    - Будь кратким (до 25 слов).
     """
     
     try:
-        # Указываем безопасность, чтобы фильтры не блокировали виноделие
-        response = model.generate_content(
-            prompt,
-            safety_settings={
-                'HATE': 'BLOCK_NONE',
-                'HARASSMENT': 'BLOCK_NONE',
-                'SEXUAL' : 'BLOCK_NONE',
-                'DANGEROUS' : 'BLOCK_NONE'
-            }
-        )
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Ошибка при генерации (код {e}). Попробуйте еще раз."
+        return f"Ошибка генерации: {str(e)}"
+
+# --- ВСТАВЬ ЭТО В show_setup ДЛЯ ОТЛАДКИ ---
+# st.write(f"⚙️ Статус ИИ: {st.session_state.ai_status}")
 
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(page_title="WINE & WHISKEY Casino", page_icon="🍷")

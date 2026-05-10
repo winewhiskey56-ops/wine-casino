@@ -18,7 +18,7 @@ COEFFS = {"Сладость": 2, "Выдержка": 2, "Страна": 3, "Со
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
 except:
     model = None
 

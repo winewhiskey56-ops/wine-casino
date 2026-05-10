@@ -13,33 +13,56 @@ DATA = {
 
 COEFFS = {"Сладость": 2, "Выдержка": 2, "Страна": 3, "Сорт винограда": 3, "Градус": 4, "Год урожая": 5}
 
-# --- НАСТРОЙКА ИИ ---
-# Пытаемся взять ключ из Secrets или из кода (для локального теста)
+# --- УНИВЕРСАЛЬНАЯ НАСТРОЙКА Gemini ИИ ---
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=API_KEY)
-    model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-except:
+    
+    # Список моделей в порядке приоритета
+    available_models = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
     model = None
+    
+    # Пытаемся инициализировать первую доступную модель
+    for m_name in available_models:
+        try:
+            model = genai.GenerativeModel(m_name)
+            # Пробный запрос (необязательно, но для надежности)
+            break 
+        except:
+            continue
+except Exception as e:
+    model = None
+    st.error(f"Критическая ошибка настройки ИИ: {e}")
 
 def get_ai_hint(target_type, target_value):
-    if not model:
-        return "Ошибка: API ключ не настроен."
+    if not model: 
+        return "ИИ не доступен. Проверьте ключи в Secrets."
     
     prompt = f"""
-    Ты эксперт-сомелье. Мы играем в винное казино. 
-    Дай короткую (2-3 предложения) подсказку для игроков про {target_type}: {target_value}.
+    Ты — эксперт-сомелье мирового класса. Мы играем в винное казино. 
+    Дай изысканный и тонкий намек игрокам про {target_type}: {target_value}.
+    
     ПРАВИЛА:
-    1. НЕ НАЗЫВАЙ само слово '{target_value}'.
-    2. НЕ используй слишком очевидные факты (например, про сапог для Италии или кенгуру для Австралии).
-    3. Используй проф. термины: ароматика (бензол, косточковые, кожа), климат, терруар или исторические факты.
-    4. Подсказка должна быть элегантной и заставлять подумать.
+    1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО называть само слово '{target_value}' или его части.
+    2. Избегай банальностей (флаги, очертания границ, столицы).
+    3. Описывай через терруар, почвы (сланец, известняк), климатические особенности или легендарные винодельческие регионы этой категории.
+    4. Максимум 30 слов. Будь загадочным.
     """
+    
     try:
-        response = model.generate_content(prompt)
+        # Указываем безопасность, чтобы фильтры не блокировали виноделие
+        response = model.generate_content(
+            prompt,
+            safety_settings={
+                'HATE': 'BLOCK_NONE',
+                'HARASSMENT': 'BLOCK_NONE',
+                'SEXUAL' : 'BLOCK_NONE',
+                'DANGEROUS' : 'BLOCK_NONE'
+            }
+        )
         return response.text
     except Exception as e:
-        return f"Не удалось получить подсказку: {str(e)}"
+        return f"Ошибка при генерации (код {e}). Попробуйте еще раз."
 
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(page_title="WINE & WHISKEY Casino", page_icon="🍷")

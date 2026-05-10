@@ -57,51 +57,66 @@ def get_ai_hint(target_type, target_value):
     
     seed = random.randint(1, 100000)
     
-    # Снимаем ограничения по тематике виноделия
+    # Сверх-четкие инструкции, чтобы ИИ не "улетал" в философию
     if "страну" in target_type.lower():
-        specific_rules = """
-        - Тема: Любая (история, уникальные традиции, рекорды, этимология, великие открытия).
-        - ЗАПРЕЩЕНО: Упоминать соседей, части света, моря/горы, столицы и флаги.
-        - СЛОЖНОСТЬ: Факт должен быть неочевидным. Не пиши про 'сапог', 'пирамиды' или 'эйфелеву башню'.
-        """
+        topic = "история, культура, этимология, уникальные рекорды"
+        bans = "соседи, моря, горы, части света, столицы, флаги, общеизвестные лидеры"
     else:
-        specific_rules = """
-        - Тема: Происхождение названия, генетические предки лозы, легенды, необычное применение в прошлом.
-        - ЗАПРЕЩЕНО: Описывать вкус, запах и современные страны производства.
-        """
+        topic = "генетика лозы, этимология названия, древние легенды, археология"
+        bans = "вкус, запах, цвет, современные страны производства"
 
     prompt = f"""
-    Напиши один интересный, сложный и глубокий факт, который поможет угадать {target_type} '{target_value}'.
-    ID запроса: {seed}
+    Напиши ОДИН сложный и редкий факт про {target_type} '{target_value}'.
+    ID: {seed}
 
     ПРАВИЛА:
-    1. КАТЕГОРИЧЕСКИ НЕ НАЗЫВАЙ '{target_value}'.
-    2. {specific_rules}
-    3. ПИШИ СТОЛЬКО, СКОЛЬКО НУЖНО, чтобы полностью раскрыть мысль, но не более одного абзаца. 
-    4. ОБЯЗАТЕЛЬНО закончи предложение точкой. Не обрывай на полуслове.
-    5. Никаких вступлений. Сразу текст.
+    1. НЕ НАЗЫВАЙ '{target_value}'.
+    2. ТЕМА: {topic}.
+    3. СТРОГО ЗАПРЕЩЕНО: {bans}. Не пиши очевидного.
+    4. ФОРМАТ: 2-4 законченных предложения. Обязательно закончи финальной точкой.
+    5. СТАРТ: Начни сразу с факта.
     """
     
     try:
+        # Настройки безопасности: отключаем блокировку "сомнительного" контента, 
+        # который часто режет текст про алкоголь или историю.
+        safety = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+
         response = model.generate_content(
             prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.8,
-                max_output_tokens=1000, # Огромный лимит, чтобы точно не обрезал
-            )
+                max_output_tokens=1500, # Запас на случай длинных историй
+            ),
+            safety_settings=safety
         )
         
-        hint_text = response.text.strip().replace('"', '')
+        # Берем чистый текст
+        hint_text = response.text.strip()
         
-        # Если вдруг ИИ все же выдал огрызок (бывает при сбое связи), чистим:
-        if not hint_text.endswith(('.', '!', '?')):
-            last_idx = max(hint_text.rfind('.'), hint_text.rfind('!'), hint_text.rfind('?'))
-            if last_idx != -1:
-                hint_text = hint_text[:last_idx + 1]
-        
+        # Если текст всё еще обрывается (нет точки в конце), 
+        # пробуем отрезать битое предложение, чтобы выглядело чисто.
+        if not hint_text.endswith(('.', '!', '?', '»')):
+            last_mark = max(hint_text.rfind('.'), hint_text.rfind('!'), hint_text.rfind('?'))
+            if last_mark != -1:
+                hint_text = hint_text[:last_mark + 1]
+            else:
+                # Если вообще нет знаков препинания, значит запрос "сломался", 
+                # пробуем вернуть текст как есть, но это редкий случай.
+                pass
+
         return hint_text
+
     except Exception as e:
-        return f"Произошла ошибка: {str(e)}"
+        # Если модель выдает ошибку пустого ответа (Safety Trigger), пишем мягко:
+        if "FinishReason.SAFETY" in str(e) or "block_reason" in str(e):
+             return "ИИ посчитал этот факт слишком секретным. Попробуйте нажать еще раз!"
+        return f"Ошибка связи с ИИ: {str(e)}"
 
 # --- ИНТЕРФЕЙС ---
 st.set_page_config(page_title="WINE & WHISKEY Casino", page_icon="🍷")

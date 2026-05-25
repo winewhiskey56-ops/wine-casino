@@ -51,7 +51,6 @@ def get_ai_hint(target_type, target_value):
             "ФОКУС: Генеалогия лозы (кто 'родители'), форма листа на языке ботаников, исторические курьезы (например, как сорт перевозили контрабандой или как его называли 500 лет назад)."
         )
 
-    # Безопасная сборка промпта без использования тройных кавычек внутри f-строки
     prompt = (
         f"Мы играем в винное казино. Дай ОДНУ нетривиальную и неочевидную подсказку про {target_type} '{target_value}'.\n"
         f"ID запроса: {seed}\n\n"
@@ -87,4 +86,14 @@ def get_ai_hint(target_type, target_value):
         if not res.endswith(stop_symbols):
             last_dot = max(res.rfind('.'), res.rfind('!'), res.rfind('?'))
             if last_dot != -1:
-                res = res
+                res = res[:last_dot + 1]
+            else:
+                return "ИИ задумался о вечном. Нажмите кнопку еще раз для новой подсказки."
+        
+        return res
+    except Exception as e:
+        return f"Техническая заминка: {str(e)}"
+
+# --- 3. УПРАВЛЕНИЕ СОСТОЯНИЕМ ---
+state_keys = {
+    "players": [], "page": "registration", "round_

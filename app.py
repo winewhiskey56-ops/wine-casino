@@ -5,7 +5,7 @@ import random
 # --- 1. КОНФИГУРАЦИЯ ДАННЫХ ---
 DATA = {
     "Сладость": ["сухое", "полусухое", "полусладкое", "сладкое"],
-    "Страна": ["Россия", "ЮАР", "Австралия", "Аргентина", "США", "Новая Зеландия", "Чили", "Франция", "Италия", "Испания", "Австрия", "Германия", "Португалия", "Грузия", "Armenia"],
+    "Страна": ["Россия", "ЮАР", "Австралия", "Аргентина", "США", "Новая Зеландия", "Чили", "Франция", "Италия", "Испания", "Австрия", "Германия", "Португалия", "Грузия", "Армения"],
     "Сорт винограда": ["Шардоне", "Рислинг", "Совиньон Блан", "Пино Гриджио", "Гевюрцтраминер", "Кортезе", "Гарганега", "Альбариньо", "Вердехо", "Грюнер Вельтлинер", "Каберне Совиньон", "Мерло", "Пино Нуар", "Сира/Шираз", "Темпранильо", "Санджовезе", "Мальбек", "Красностоп", "Саперави"],
     "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"]
 }
@@ -101,8 +101,7 @@ state_keys = {
     "players": [], "page": "registration", "round_num": 1,
     "current_wine": {}, "bet_rows_count": 1,
     "hints": {"country": "", "grape": ""}, "current_player_idx": 0,
-    "temp_name_input": "",
-    "last_country": "—", "last_grape": "—" # Ключи для отслеживания автогенерации
+    "last_country": "—", "last_grape": "—"
 }
 for key, default in state_keys.items():
     if key not in st.session_state:
@@ -118,34 +117,38 @@ def header(show_logo=False):
 
 # --- 4. СТРАНИЦЫ ---
 
-def add_player():
-    name = st.session_state.temp_name_input.strip()
-    if name:
-        # Установлен начальный баланс 150 фишек
-        st.session_state.players.append({"name": name, "balance": 150, "round_bets": [], "balance_at_start": 150})
-        st.session_state.temp_name_input = ""
-
 def show_registration():
-    header(show_logo=True) # Логотип только здесь
+    header(show_logo=True)
     st.markdown("<h2 style='text-align: center;'>📝 Регистрация</h2>", unsafe_allow_html=True)
     
-    st.text_input("Имя игрока (нажмите Enter для добавления):", key="temp_name_input", on_change=add_player)
-    
-    # Кнопка теперь просто обновляет интерфейс (игрок добавляется через on_change)
-    if st.button("Добавить игрока"):
-        st.rerun()
-    
+    # Используем форму (st.form), это железобетонно решает проблему двойного срабатывания в Streamlit
+    with st.form("registration_form", clear_on_submit=True):
+        name = st.text_input("Имя игрока:", placeholder="Введите имя и нажмите Enter или кнопку снизу")
+        submitted = st.form_submit_button("Добавить игрока", use_container_width=True)
+        
+        if submitted and name.strip():
+            st.session_state.players.append({
+                "name": name.strip(), 
+                "balance": 150, 
+                "round_bets": [], 
+                "balance_at_start": 150
+            })
+            st.rerun()
+            
     if st.session_state.players:
-        for p in st.session_state.players: st.write(f"✅ {p['name']}")
+        st.write("### Список гостей:")
+        for p in st.session_state.players: 
+            st.write(f"✅ {p['name']}")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Начать игру ➔", use_container_width=True, type="primary"):
             st.session_state.page = "setup"
             st.rerun()
 
 def show_setup():
-    header(show_logo=False) # Во время игры логотипа нет
+    header(show_logo=False)
     st.markdown(f"### 🍷 Раунд №{st.session_state.round_num}")
     
-    # Разделение экрана: слева параметры, справа подсказки ИИ
     col1, col2 = st.columns([1, 1.2])
     
     with col1:
@@ -153,7 +156,6 @@ def show_setup():
         for cat, opts in DATA.items():
             st.session_state.current_wine[cat] = st.selectbox(f"{cat}:", ["—"] + opts, key=f"s_{cat}")
             
-    # Логика автоматической генерации при выборе параметров
     current_country = st.session_state.current_wine.get("Страна", "—")
     current_grape = st.session_state.current_wine.get("Сорт винограда", "—")
     
@@ -168,7 +170,6 @@ def show_setup():
     with col2:
         st.markdown("#### Подсказки Сомелье-ИИ")
         
-        # Подсказка по Стране
         if current_country != "—":
             st.info(st.session_state.hints["country"] or "Генерация подсказки...")
             if st.button("🔄 Обновить факт о Стране"):
@@ -179,7 +180,6 @@ def show_setup():
             
         st.markdown("<br>", unsafe_allow_html=True)
             
-        # Подсказка по Сорту
         if current_grape != "—":
             st.success(st.session_state.hints["grape"] or "Генерация подсказки...")
             if st.button("🔄 Обновить факт о Сорте"):
@@ -204,98 +204,4 @@ def show_betting():
     temp_spent = 0
     valid_bets = []
     for i in range(st.session_state.bet_rows_count):
-        cat = st.session_state.get(f"p{p_idx}_c{i}", "Сладость")
-        val = st.session_state.get(f"p{p_idx}_v{i}", "—")
-        amt = st.session_state.get(f"p{p_idx}_a{i}", 0)
-        if val != "—" and amt > 0:
-            temp_spent += amt
-            valid_bets.append({"cat": cat, "val": val, "amt": amt})
-
-    st.markdown(f"<h2 style='text-align: center;'>👤 {player['name']}</h2>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center; color: #D4AF37;'>Остаток: {player['balance'] - temp_spent}</h3>", unsafe_allow_html=True)
-
-    for i in range(st.session_state.bet_rows_count):
-        c1, c2, c3 = st.columns([2, 2, 1])
-        with c1: st.selectbox("Тип", list(COEFFS.keys()), key=f"p{p_idx}_c{i}")
-        with c2: st.selectbox("Ставка", ["—"] + DATA[st.session_state[f"p{p_idx}_c{i}"]], key=f"p{p_idx}_v{i}")
-        with c3: st.number_input("Сумма", min_value=0, step=10, key=f"p{p_idx}_a{i}") # Уменьшил шаг до 10 фишек из-за нового баланса
-        
-        current_v = st.session_state.get(f"p{p_idx}_v{i}", "—")
-        current_a = st.session_state.get(f"p{p_idx}_a{i}", 0)
-        if i == st.session_state.bet_rows_count - 1 and current_v != "—" and current_a > 0:
-            st.session_state.bet_rows_count += 1
-            st.rerun()
-
-    if st.button("Принять ставки", use_container_width=True, type="primary"):
-        player['round_bets'] = valid_bets
-        player['balance'] -= temp_spent
-        if st.session_state.current_player_idx < len(st.session_state.players) - 1:
-            st.session_state.current_player_idx += 1
-            st.session_state.bet_rows_count = 1
-        else:
-            st.session_state.page = "results"
-        st.rerun()
-
-def show_results():
-    header(show_logo=False)
-    correct = st.session_state.current_wine
-    st.markdown("<h2 style='text-align: center;'>📊 Итоги Раунда</h2>", unsafe_allow_html=True)
-    st.info("🎯 **Правильный ответ:** " + " | ".join([f"{k}: {v}" for k, v in correct.items() if v != "—"]))
-    
-    for p in st.session_state.players:
-        win_sum = 0
-        details = []
-        for b in p['round_bets']:
-            is_hit = str(b['val']).lower() == str(correct.get(b['cat'])).lower()
-            res = b['amt'] * COEFFS[b['cat']] if is_hit else 0
-            win_sum += res
-            details.append(f"<p style='color:{'#28a745' if is_hit else '#dc3545'}; margin: 0;'>{'✅' if is_hit else '❌'} {b['cat']}: {b['val']} | {b['amt']} ➔ {res}</p>")
-        
-        p['balance'] += win_sum
-        with st.expander(f"👤 {p['name']} | Выигрыш: +{win_sum}"):
-            st.markdown("".join(details) or "Ставок нет", unsafe_allow_html=True)
-            st.markdown("---")
-            st.write(f"**До раунда:** {p['balance_at_start']} | **Итоговый баланс:** {p['balance']}")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2)
-    if c1.button("Следующий раунд 🍷", use_container_width=True):
-        st.session_state.round_num += 1
-        st.session_state.page = "setup"
-        st.session_state.hints = {"country": "", "grape": ""}
-        st.session_state.last_country = "—"
-        st.session_state.last_grape = "—"
-        for k in list(st.session_state.keys()):
-            if any(x in k for x in ["_v", "_a", "_c"]): del st.session_state[k]
-        st.rerun()
-        
-    if c2.button("Завершить игру 🏆", use_container_width=True, type="primary"):
-        st.session_state.page = "final"
-        st.rerun()
-
-def show_final():
-    header(show_logo=False)
-    st.markdown("<h1 style='text-align: center;'>🏆 Финал Игры</h1>", unsafe_allow_html=True)
-    
-    sorted_players = sorted(st.session_state.players, key=lambda x: x['balance'], reverse=True)
-    for i, p in enumerate(sorted_players):
-        if i == 0:
-            st.success(f"🥇 1. {p['name']} — {p['balance']} фишек")
-        elif i == 1:
-            st.info(f"🥈 2. {p['name']} — {p['balance']} фишек")
-        elif i == 2:
-            st.warning(f"🥉 3. {p['name']} — {p['balance']} фишек")
-        else:
-            st.write(f"**{i+1}. {p['name']}** — {p['balance']} фишек")
-            
-    st.markdown("---")
-    if st.button("Начать новую игру 🔄", use_container_width=True, type="primary"):
-        st.session_state.clear()
-        st.rerun()
-
-# --- 5. РОУТИНГ ---
-if st.session_state.page == "registration": show_registration()
-elif st.session_state.page == "setup": show_setup()
-elif st.session_state.page == "betting": show_betting()
-elif st.session_state.page == "results": show_results()
-elif st.session_state.page == "final": show_final()
+        cat = st.session_state.get(f"p{p_idx}_c{i}", "Сла

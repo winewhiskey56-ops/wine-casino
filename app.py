@@ -5,14 +5,12 @@ import random
 # --- 1. КОНФИГУРАЦИЯ ДАННЫХ ---
 DATA = {
     "Сладость": ["сухое", "полусухое", "полусладкое", "сладкое"],
-    "Страна": ["Россия", "ЮАР", "Австралия", "Аргентина", "США", "Новая Зеландия", "Чили", "Франция", "Италия", "Испания", "Австрия", "Германия", "Португалия", "Грузия", "Армения"],
+    "Страна": ["Россия", "ЮАР", "Австралия", "Аргентина", "США", "Новая Зеландия", "Чили", "Франция", "Италия", "Испания", "Австрия", "Германия", "Португалия", "Грузия", "Armenia"],
     "Сорт винограда": ["Шардоне", "Рислинг", "Совиньон Блан", "Пино Гриджио", "Гевюрцтраминер", "Кортезе", "Гарганега", "Альбариньо", "Вердехо", "Грюнер Вельтлинер", "Каберне Совиньон", "Мерло", "Пино Нуар", "Сира/Шираз", "Темпранильо", "Санджовезе", "Мальбек", "Красностоп", "Саперави"],
-    "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"],
-    "Градус": ["11%", "12%", "13%", "14%"],
-    "Год урожая": [str(year) for year in range(2015, 2027)]
+    "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"]
 }
 
-COEFFS = {"Сладость": 2, "Выдержка": 2, "Страна": 3, "Сорт винограда": 3, "Градус": 4, "Год урожая": 5}
+COEFFS = {"Страна": 2, "Сорт винограда": 3, "Сладость": 2, "Выдержка": 3}
 
 # --- 2. ИНИЦИАЛИЗАЦИЯ ИИ ---
 def initialize_ai():
@@ -39,7 +37,6 @@ def get_ai_hint(target_type, target_value):
     
     seed = random.randint(1, 100000)
     
-    # Тонкая настройка подсказок
     if "страну" in target_type.lower():
         logic = """
         Твоя цель — дать легкий, изящный намек. 
@@ -55,7 +52,7 @@ def get_ai_hint(target_type, target_value):
         """
 
     prompt = f"""
-    Мы играем в винное казино. Дай ОДНУ неочевидную подсказку про {target_type} '{target_value}'. 
+    Мы играем в винное казино. Дай ОДНУ нетривиальную и неочевидную подсказку про {target_type} '{target_value}'. 
     ID запроса: {seed}
     
     {logic}
@@ -65,7 +62,7 @@ def get_ai_hint(target_type, target_value):
     2. Пиши изысканно, 2-3 законченных предложения. 
     3. Не используй вводные слова ("Вот ваш факт", "Интересно, что..."). Сразу к сути.
     4. Если не знаешь редкого факта, лучше напиши про геологический возраст почв или древнее название местности.
-    5. ОБЯЗАТЕЛЬНО закончи мысль.
+    5. ОБЯЗАТЕЛЬНО закончи мысль точкой.
     """
     
     try:
@@ -78,8 +75,8 @@ def get_ai_hint(target_type, target_value):
         response = model.generate_content(
             prompt, 
             generation_config=genai.types.GenerationConfig(
-                temperature=1.0, # Максимальное разнообразие
-                max_output_tokens=1500, # Хватит на целый рассказ
+                temperature=1.0,
+                max_output_tokens=1500,
                 top_p=0.95
             ),
             safety_settings=safety
@@ -87,15 +84,12 @@ def get_ai_hint(target_type, target_value):
         
         res = response.text.strip().replace('"', '')
         
-        # Улучшенная проверка на обрыв: если текста мало или он обрывается на запятой/союзе
         stop_symbols = ('.', '!', '?', '»', '—')
         if not res.endswith(stop_symbols):
-            # Ищем последнюю точку, чтобы не выдавать обрубок
             last_dot = max(res.rfind('.'), res.rfind('!'), res.rfind('?'))
             if last_dot != -1:
                 res = res[:last_dot + 1]
             else:
-                # Если точек нет вообще, значит ИИ выдал странный поток сознания — просим перегенерить
                 return "ИИ задумался о вечном. Нажмите кнопку еще раз для новой подсказки."
         
         return res
@@ -107,17 +101,19 @@ state_keys = {
     "players": [], "page": "registration", "round_num": 1,
     "current_wine": {}, "bet_rows_count": 1,
     "hints": {"country": "", "grape": ""}, "current_player_idx": 0,
-    "temp_name_input": "" # Добавили ключ для строки регистрации
+    "temp_name_input": "",
+    "last_country": "—", "last_grape": "—" # Ключи для отслеживания автогенерации
 }
 for key, default in state_keys.items():
     if key not in st.session_state:
         st.session_state[key] = default
 
-def header():
-    c1, c2, c3 = st.columns([1, 1.5, 1])
-    with c2:
-        try: st.image("logo.png", width=250)
-        except: st.write("### WINE & WHISKEY")
+def header(show_logo=False):
+    if show_logo:
+        c1, c2, c3 = st.columns([1, 1.5, 1])
+        with c2:
+            try: st.image("logo.png", width=250)
+            except: st.write("### WINE & WHISKEY")
     st.markdown("---")
 
 # --- 4. СТРАНИЦЫ ---
@@ -125,18 +121,18 @@ def header():
 def add_player():
     name = st.session_state.temp_name_input.strip()
     if name:
-        st.session_state.players.append({"name": name, "balance": 1000, "round_bets": [], "balance_at_start": 1000})
-        st.session_state.temp_name_input = "" # Очищаем поле после добавления
+        # Установлен начальный баланс 150 фишек
+        st.session_state.players.append({"name": name, "balance": 150, "round_bets": [], "balance_at_start": 150})
+        st.session_state.temp_name_input = ""
 
 def show_registration():
-    header()
+    header(show_logo=True) # Логотип только здесь
     st.markdown("<h2 style='text-align: center;'>📝 Регистрация</h2>", unsafe_allow_html=True)
     
-    # Теперь работает и по нажатию Enter, и очищается после добавления
     st.text_input("Имя игрока (нажмите Enter для добавления):", key="temp_name_input", on_change=add_player)
     
+    # Кнопка теперь просто обновляет интерфейс (игрок добавляется через on_change)
     if st.button("Добавить игрока"):
-        add_player()
         st.rerun()
     
     if st.session_state.players:
@@ -146,30 +142,53 @@ def show_registration():
             st.rerun()
 
 def show_setup():
-    header()
+    header(show_logo=False) # Во время игры логотипа нет
     st.markdown(f"### 🍷 Раунд №{st.session_state.round_num}")
     
-    with st.expander("Параметры вина", expanded=True):
+    # Разделение экрана: слева параметры, справа подсказки ИИ
+    col1, col2 = st.columns([1, 1.2])
+    
+    with col1:
+        st.markdown("#### Параметры вина")
         for cat, opts in DATA.items():
             st.session_state.current_wine[cat] = st.selectbox(f"{cat}:", ["—"] + opts, key=f"s_{cat}")
+            
+    # Логика автоматической генерации при выборе параметров
+    current_country = st.session_state.current_wine.get("Страна", "—")
+    current_grape = st.session_state.current_wine.get("Сорт винограда", "—")
     
+    if current_country != "—" and current_country != st.session_state.last_country:
+        st.session_state.hints["country"] = get_ai_hint("страну", current_country)
+        st.session_state.last_country = current_country
+        
+    if current_grape != "—" and current_grape != st.session_state.last_grape:
+        st.session_state.hints["grape"] = get_ai_hint("сорт винограда", current_grape)
+        st.session_state.last_grape = current_grape
+
+    with col2:
+        st.markdown("#### Подсказки Сомелье-ИИ")
+        
+        # Подсказка по Стране
+        if current_country != "—":
+            st.info(st.session_state.hints["country"] or "Генерация подсказки...")
+            if st.button("🔄 Обновить факт о Стране"):
+                st.session_state.hints["country"] = get_ai_hint("страну", current_country)
+                st.rerun()
+        else:
+            st.caption("Выберите страну для получения намёка.")
+            
+        st.markdown("<br>", unsafe_allow_html=True)
+            
+        # Подсказка по Сорту
+        if current_grape != "—":
+            st.success(st.session_state.hints["grape"] or "Генерация подсказки...")
+            if st.button("🔄 Обновить факт о Сорте"):
+                st.session_state.hints["grape"] = get_ai_hint("сорт винограда", current_grape)
+                st.rerun()
+        else:
+            st.caption("Выберите сорт винограда для получения намёка.")
+
     st.markdown("---")
-    c1, c2 = st.columns(2)
-    if c1.button("🤖 Факт о Стране"):
-        val = st.session_state.current_wine.get("Страна")
-        if val != "—": 
-            with st.spinner("Ищу факт..."):
-                st.session_state.hints["country"] = get_ai_hint("страну", val)
-    
-    if c2.button("🤖 Факт о Сорте"):
-        val = st.session_state.current_wine.get("Сорт винограда")
-        if val != "—": 
-            with st.spinner("Ищу факт..."):
-                st.session_state.hints["grape"] = get_ai_hint("сорт винограда", val)
-
-    if st.session_state.hints["country"]: st.info(st.session_state.hints["country"])
-    if st.session_state.hints["grape"]: st.success(st.session_state.hints["grape"])
-
     if st.button("Перейти к ставкам ➔", use_container_width=True, type="primary"):
         for p in st.session_state.players: p['balance_at_start'] = p['balance']
         st.session_state.page = "betting"
@@ -178,7 +197,7 @@ def show_setup():
         st.rerun()
 
 def show_betting():
-    header()
+    header(show_logo=False)
     p_idx = st.session_state.current_player_idx
     player = st.session_state.players[p_idx]
     
@@ -199,7 +218,7 @@ def show_betting():
         c1, c2, c3 = st.columns([2, 2, 1])
         with c1: st.selectbox("Тип", list(COEFFS.keys()), key=f"p{p_idx}_c{i}")
         with c2: st.selectbox("Ставка", ["—"] + DATA[st.session_state[f"p{p_idx}_c{i}"]], key=f"p{p_idx}_v{i}")
-        with c3: st.number_input("Сумма", min_value=0, step=50, key=f"p{p_idx}_a{i}")
+        with c3: st.number_input("Сумма", min_value=0, step=10, key=f"p{p_idx}_a{i}") # Уменьшил шаг до 10 фишек из-за нового баланса
         
         current_v = st.session_state.get(f"p{p_idx}_v{i}", "—")
         current_a = st.session_state.get(f"p{p_idx}_a{i}", 0)
@@ -218,12 +237,11 @@ def show_betting():
         st.rerun()
 
 def show_results():
-    header()
+    header(show_logo=False)
     correct = st.session_state.current_wine
     st.markdown("<h2 style='text-align: center;'>📊 Итоги Раунда</h2>", unsafe_allow_html=True)
     st.info("🎯 **Правильный ответ:** " + " | ".join([f"{k}: {v}" for k, v in correct.items() if v != "—"]))
     
-    # Возвращаем детальную статистику
     for p in st.session_state.players:
         win_sum = 0
         details = []
@@ -237,7 +255,7 @@ def show_results():
         with st.expander(f"👤 {p['name']} | Выигрыш: +{win_sum}"):
             st.markdown("".join(details) or "Ставок нет", unsafe_allow_html=True)
             st.markdown("---")
-            st.write(f"**До:** {p['balance_at_start']} | **Стало:** {p['balance']}")
+            st.write(f"**До раунда:** {p['balance_at_start']} | **Итоговый баланс:** {p['balance']}")
 
     st.markdown("<br>", unsafe_allow_html=True)
     c1, c2 = st.columns(2)
@@ -245,30 +263,30 @@ def show_results():
         st.session_state.round_num += 1
         st.session_state.page = "setup"
         st.session_state.hints = {"country": "", "grape": ""}
+        st.session_state.last_country = "—"
+        st.session_state.last_grape = "—"
         for k in list(st.session_state.keys()):
             if any(x in k for x in ["_v", "_a", "_c"]): del st.session_state[k]
         st.rerun()
         
-    # Кнопка перехода к финалу
     if c2.button("Завершить игру 🏆", use_container_width=True, type="primary"):
         st.session_state.page = "final"
         st.rerun()
 
 def show_final():
-    header()
+    header(show_logo=False)
     st.markdown("<h1 style='text-align: center;'>🏆 Финал Игры</h1>", unsafe_allow_html=True)
     
     sorted_players = sorted(st.session_state.players, key=lambda x: x['balance'], reverse=True)
     for i, p in enumerate(sorted_players):
-        # Подсветка победителя
         if i == 0:
-            st.success(f"🥇 1. {p['name']} — {p['balance']} очков")
+            st.success(f"🥇 1. {p['name']} — {p['balance']} фишек")
         elif i == 1:
-            st.info(f"🥈 2. {p['name']} — {p['balance']} очков")
+            st.info(f"🥈 2. {p['name']} — {p['balance']} фишек")
         elif i == 2:
-            st.warning(f"🥉 3. {p['name']} — {p['balance']} очков")
+            st.warning(f"🥉 3. {p['name']} — {p['balance']} фишек")
         else:
-            st.write(f"**{i+1}. {p['name']}** — {p['balance']} очков")
+            st.write(f"**{i+1}. {p['name']}** — {p['balance']} фишек")
             
     st.markdown("---")
     if st.button("Начать новую игру 🔄", use_container_width=True, type="primary"):

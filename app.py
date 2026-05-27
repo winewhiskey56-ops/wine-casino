@@ -57,18 +57,34 @@ COEFFS = {"Страна": 2, "Сорт винограда": 3, "Сладость
 # --- 2. ИНИЦИАЛИЗАЦИЯ ИИ ---
 def initialize_ai():
     try:
-        if "GEMINI_API_KEY" not in st.secrets: 
-            return None, "Ключ не найден в Secrets"
-        
-        # Прямая конфигурация без лишних проверок
+        if "GEMINI_API_KEY" not in st.secrets: return None, "Нет ключа"
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # Самое прямое и базовое имя модели в библиотеке
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Получаем реальный список всех моделей, доступных твоему ключу прямо сейчас
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         
-        return model, "ОК: gemini-1.5-flash"
+        # Список приоритетов: ищем сначала новые, потом стабильные, потом любые старые
+        target_models = [
+            'models/gemini-1.5-flash', 
+            'gemini-1.5-flash', 
+            'models/gemini-2.5-flash',
+            'models/gemini-pro'
+        ]
+        
+        # Выбираем первую совпавшую модель из списка доступных
+        sel = next((m for m in target_models if m in available_models), None)
+        
+        # Если ничего из списка не нашлось, берем вообще любую доступную модель
+        if not sel and available_models:
+            sel = available_models[0]
+            
+        if sel:
+            return genai.GenerativeModel(sel), f"ОК: {sel}"
+        else:
+            return None, "Доступные модели не найдены"
+            
     except Exception as e: 
-        return None, f"Ошибка при старте: {str(e)}"
+        return None, f"Ошибка инициализации: {str(e)}"
 
 if "ai_model" not in st.session_state:
     m, s = initialize_ai()

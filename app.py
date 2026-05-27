@@ -57,15 +57,18 @@ COEFFS = {"Страна": 2, "Сорт винограда": 3, "Сладость
 # --- 2. ИНИЦИАЛИЗАЦИЯ ИИ ---
 def initialize_ai():
     try:
-        if "GEMINI_API_KEY" not in st.secrets: return None, "Нет ключа"
+        if "GEMINI_API_KEY" not in st.secrets: 
+            return None, "Ключ не найден в Secrets"
+        
+        # Прямая конфигурация без лишних проверок
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # Убираем префикс 'models/', оставляем чистое имя. 
-        # Библиотека сама подставит правильную рабочую версию API.
-        sel = 'gemini-1.5-flash'
+        # Самое прямое и базовое имя модели в библиотеке
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
-        return genai.GenerativeModel(sel), f"ОК: {sel}"
-    except Exception as e: return None, str(e)
+        return model, "ОК: gemini-1.5-flash"
+    except Exception as e: 
+        return None, f"Ошибка при старте: {str(e)}"
 
 if "ai_model" not in st.session_state:
     m, s = initialize_ai()

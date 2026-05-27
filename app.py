@@ -60,8 +60,10 @@ def initialize_ai():
         if "GEMINI_API_KEY" not in st.secrets: return None, "Нет ключа"
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
         
-        # Задаем стабильную модель 1.5-flash по умолчанию
-        sel = 'models/gemini-1.5-flash'
+        # Убираем префикс 'models/', оставляем чистое имя. 
+        # Библиотека сама подставит правильную рабочую версию API.
+        sel = 'gemini-1.5-flash'
+        
         return genai.GenerativeModel(sel), f"ОК: {sel}"
     except Exception as e: return None, str(e)
 

@@ -59,9 +59,12 @@ def initialize_ai():
     try:
         if "GEMINI_API_KEY" not in st.secrets: return None, "Нет ключа"
         genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        sel = next((m for m in ['models/gemini-1.5-flash', 'models/gemini-pro'] if m in models), models[0] if models else None)
-        return (genai.GenerativeModel(sel), f"ОК: {sel}") if sel else (None, "Нет моделей")
+        
+        # Жестко прописываем стабильную модель 1.5-flash с большими бесплатными лимитами
+        # вместо капризной 2.5-flash, которая заблокировала нам доступ
+        sel = 'models/gemini-1.5-flash'
+        
+        return genai.GenerativeModel(sel), f"ОК: {sel}"
     except Exception as e: return None, str(e)
 
 if "ai_model" not in st.session_state:

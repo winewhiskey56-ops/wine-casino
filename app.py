@@ -183,44 +183,31 @@ def show_registration():
 def show_setup():
     header()
     st.markdown(f"### 🍷 Раунд №{st.session_state.round_num}")
-    c1, c2 = st.columns([1, 1.2])
+    
+    # Делаем аккуратную форму во всю ширину без ИИ-блоков
+    st.markdown("#### Выберите параметры загаданного вина:")
+    
+    # Чтобы интерфейс выглядел красиво, разобьем селекты на две колонки
+    c1, c2 = st.columns(2)
     with c1:
-        st.markdown("#### Параметры")
-        for cat, opts in DATA.items():
+        for cat in list(DATA.keys())[:2]:
             old_val = st.session_state.current_wine.get(cat, "—")
-            new_val = st.selectbox(f"{cat}:", ["—"] + opts, key=f"s_{cat}")
+            new_val = st.selectbox(f"{cat}:", ["—"] + DATA[cat], key=f"s_{cat}")
             if new_val != old_val:
                 st.session_state.current_wine[cat] = new_val
                 save_game_state()
-    
-    c_count = st.session_state.current_wine.get("Country" if "Country" in st.session_state.current_wine else "Страна", "—")
-    c_grape = st.session_state.current_wine.get("Grape" if "Grape" in st.session_state.current_wine else "Сорт винограда", "—")
-    
-    if c_count != "—" and c_count != st.session_state.last_country:
-        st.session_state.hints["country"] = get_ai_hint("страну", c_count)
-        st.session_state.last_country = c_count
-        save_game_state()
-    if c_grape != "—" and c_grape != st.session_state.last_grape:
-        st.session_state.hints["grape"] = get_ai_hint("сорт винограда", c_grape)
-        st.session_state.last_grape = c_grape
-        save_game_state()
-
     with c2:
-        st.markdown("#### Подсказки ИИ")
-        if c_count != "—":
-            st.info(st.session_state.hints["country"] or "Ждем ИИ...")
-            if st.button("🔄 Обновить Страну"):
-                st.session_state.hints["country"] = get_ai_hint("страну", c_count)
-                save_game_state(); st.rerun()
-        if c_grape != "—":
-            st.success(st.session_state.hints["grape"] or "Ждем ИИ...")
-            if st.button("🔄 Обновить Сорт"):
-                st.session_state.hints["grape"] = get_ai_hint("сорт винограда", c_grape)
-                save_game_state(); st.rerun()
+        for cat in list(DATA.keys())[2:]:
+            old_val = st.session_state.current_wine.get(cat, "—")
+            new_val = st.selectbox(f"{cat}:", ["—"] + DATA[cat], key=f"s_{cat}")
+            if new_val != old_val:
+                st.session_state.current_wine[cat] = new_val
+                save_game_state()
                 
     st.markdown("---")
     if st.button("К ставкам ➔", use_container_width=True, type="primary"):
-        for p in st.session_state.players: p['balance_at_start'] = p['balance']
+        for p in st.session_state.players: 
+            p['balance_at_start'] = p['balance']
         st.session_state.page = "betting"
         st.session_state.current_player_idx = 0
         st.session_state.bet_rows_count = 1

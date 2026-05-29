@@ -3,88 +3,7 @@ import google.generativeai as genai
 import random
 import json
 import os
-import base64
 
-def get_base64_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
-
-def apply_custom_design(background_image_path):
-    encoded_string = get_base64_image(background_image_path)
-    st.markdown(
-        f"""
-        <style>
-        /* Анимация «живого» шелка */
-        @keyframes luxuryMovement {{
-            0% {{ background-position: 0% 50%; }}
-            50% {{ background-position: 100% 50%; }}
-            100% {{ background-position: 0% 50%; }}
-        }}
-
-        .stApp {{
-            background-image: 
-                linear-gradient(135deg, rgba(141, 29, 67, 0.8) 0%, rgba(42, 4, 17, 0.95) 100%),
-                url("data:image/png;base64,{encoded_string}");
-            background-size: 130% 130%; 
-            background-attachment: fixed;
-            animation: luxuryMovement 12s ease-in-out infinite; 
-            color: #ffffff !important;
-        }}
-
-        /* ЖЕСТКИЙ ФИКС ЧИТАЕМОСТИ ВСЕХ ЭЛЕМЕНТОВ */
-        h1, h2, h3, h4, h5, h6, p, span, label, th, td {{
-            color: #ffffff !important;
-            font-weight: 500 !important;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6) !important;
-        }}
-        
-        /* Делаем блоки (формы, expander-ы) более плотными и матовыми, чтобы фон под ними не мешал */
-        div.stForm, .streamlit-expanderHeader, .streamlit-expanderContent {{
-            background-color: rgba(30, 4, 12, 0.75) !important; /* Плотная винная подложка */
-            border: 1px solid rgba(255, 255, 255, 0.15) !important;
-            border-radius: 12px !important;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
-        }}
-        
-        /* Стилизация раскрывающихся списков при наведении */
-        .streamlit-expanderHeader:hover {{
-            background-color: rgba(255, 255, 255, 0.1) !important;
-        }}
-
-        /* Контрастные и яркие поля ввода (селекты, инпуты) */
-        div[data-baseweb="select"] div, div[data-baseweb="input"] div, div[data-baseweb="base-input"] {{
-            background-color: #ffffff !important;
-            border-radius: 8px !important;
-        }}
-        
-        /* Весь текст внутри инпутов — строго черный */
-        div[data-baseweb="select"] *, div[data-baseweb="input"] *, div[data-baseweb="base-input"] * {{
-            color: #1a1a1a !important;
-            font-weight: 600 !important;
-            text-shadow: none !important;
-        }}
-        
-        /* Подсветка кнопок действия, чтобы они выглядели дорого */
-        .stButton button {{
-            border-radius: 8px !important;
-            font-weight: 600 !important;
-            transition: all 0.3s ease;
-        }}
-        
-        /* Кнопки "Принять" и "Далее" делаем золотисто-контрастными при наведении */
-        .stButton button[type="primary"] {{
-            background-color: #d4af37 !important; /* Благородное золото */
-            color: #1a1a1a !important;
-            border: none !important;
-        }}
-        .stButton button[type="primary"]:hover {{
-            background-color: #f3e5ab !important;
-            box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
     
 BACKUP_FILE = "wine_casino_backup.json"
 
@@ -399,7 +318,6 @@ def show_final():
         st.rerun()
 
 # --- 5. РОУТИНГ ---
-apply_custom_design("background.png") # Применяем фирменный фон Simple
 if st.session_state.page == "registration": show_registration()
 elif st.session_state.page == "setup": show_setup()
 elif st.session_state.page == "betting": show_betting()

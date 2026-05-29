@@ -14,8 +14,8 @@ def apply_custom_design(background_image_path):
     st.markdown(
         f"""
         <style>
-        /* Создаем красивую плавную анимацию перелива */
-        @keyframes gradientShift {{
+        /* Эффект мягкого «живого» смещения фона */
+        @keyframes luxuryMovement {{
             0% {{ background-position: 0% 50%; }}
             50% {{ background-position: 100% 50%; }}
             100% {{ background-position: 0% 50%; }}
@@ -23,25 +23,32 @@ def apply_custom_design(background_image_path):
 
         .stApp {{
             background-image: 
-                linear-gradient(135deg, rgba(141, 29, 67, 0.8) 0%, rgba(42, 4, 17, 0.9) 100%),
+                linear-gradient(135deg, rgba(141, 29, 67, 0.75) 0%, rgba(42, 4, 17, 0.9) 100%),
                 url("data:image/png;base64,{encoded_string}");
-            background-size: cover;
-            background-position: center;
+            
+            /* Увеличиваем размер до 120%, чтобы картинке было куда плавно двигаться */
+            background-size: 120% 120%; 
             background-attachment: fixed;
-            animation: gradientShift 15s ease infinite; /* Фон будет мягко играть светом */
+            
+            /* Ускорили до 8 секунд для заметного эффекта «живого» шелка */
+            animation: luxuryMovement 8s ease-in-out infinite; 
             color: #ffffff;
         }}
 
+        /* Фикс для читаемости текста */
         h1, h2, h3, h4, h5, h6, p, span, label, div.stForm {{
             color: #ffffff !important;
         }}
         
+        /* Прозрачные стильные подложки для блоков */
         div.stForm, .streamlit-expanderHeader, .streamlit-expanderContent {{
             background-color: rgba(255, 255, 255, 0.05) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 8px !important;
+            backdrop-filter: blur(5px); /* Легкое размытие заднего фона под блоками */
         }}
 
+        /* Контрастные поля ввода */
         div[data-baseweb="select"] div, div[data-baseweb="input"] div {{
             background-color: rgba(255, 255, 255, 0.95) !important;
             border-radius: 8px !important;
@@ -54,6 +61,7 @@ def apply_custom_design(background_image_path):
         """,
         unsafe_allow_html=True
     )
+    
 BACKUP_FILE = "wine_casino_backup.json"
 
 # --- ФУНКЦИИ ЗАЩИТЫ ОТ СБРОСА СЕССИИ ---

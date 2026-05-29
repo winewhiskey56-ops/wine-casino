@@ -14,32 +14,39 @@ def apply_custom_design(background_image_path):
     st.markdown(
         f"""
         <style>
-        /* Настройка фона приложения с использованием изображения */
+        /* Создаем красивую плавную анимацию перелива */
+        @keyframes gradientShift {{
+            0% {{ background-position: 0% 50%; }}
+            50% {{ background-position: 100% 50%; }}
+            100% {{ background-position: 0% 50%; }}
+        }}
+
         .stApp {{
-            background-image: url("data:image/png;base64,{encoded_string}");
+            background-image: 
+                linear-gradient(135deg, rgba(141, 29, 67, 0.8) 0%, rgba(42, 4, 17, 0.9) 100%),
+                url("data:image/png;base64,{encoded_string}");
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
+            animation: gradientShift 15s ease infinite; /* Фон будет мягко играть светом */
             color: #ffffff;
         }}
 
-        /* Делаем весь обычный текст белым для читаемости на темном фоне */
         h1, h2, h3, h4, h5, h6, p, span, label, div.stForm {{
             color: #ffffff !important;
         }}
         
-        /* Убираем белый фон у блоков (forms, expanders) для прозрачности */
         div.stForm, .streamlit-expanderHeader, .streamlit-expanderContent {{
-            background-color: transparent !important;
+            background-color: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 8px !important;
         }}
 
-        /* Стилизация выпадающих списков и полей ввода */
         div[data-baseweb="select"] div, div[data-baseweb="input"] div {{
-            background-color: rgba(255, 255, 255, 0.9) !important;
+            background-color: rgba(255, 255, 255, 0.95) !important;
             border-radius: 8px !important;
         }}
         
-        /* Текст внутри полей ввода делаем темным */
         div[data-baseweb="select"] *, div[data-baseweb="input"] * {{
             color: #1e1e1e !important;
         }}

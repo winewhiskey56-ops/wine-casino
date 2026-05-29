@@ -291,13 +291,13 @@ def show_results():
         save_game_state()
         st.rerun()
         
-    # Кнопка ЗАВЕРШИТЬ ИГРУ опущена вниз, уменьшена и защищена окном подтверждения
+   # Кнопка ЗАВЕРШИТЬ ИГРУ опущена вниз, уменьшена и защищена окном подтверждения
     st.write("")
     c1, c2 = st.columns([2, 1])
     with c2:
         with st.popover("🚫 Завершить игру", use_container_width=True):
             st.warning("Вы уверены, что хотите закончить игру и перейти к финальным результатам?")
-            if st.form_submit_button if False else st.button("Да, подтверждаю", use_container_width=True, type=" Castro" if False else "danger"):
+            if st.button("Да, подтверждаю", use_container_width=True, type="primary"):
                 st.session_state.page = "final"
                 save_game_state()
                 st.rerun()

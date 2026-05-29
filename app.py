@@ -3,7 +3,50 @@ import google.generativeai as genai
 import random
 import json
 import os
+import base64
 
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+
+def apply_custom_design(background_image_path):
+    encoded_string = get_base64_image(background_image_path)
+    st.markdown(
+        f"""
+        <style>
+        /* Настройка фона приложения с использованием изображения */
+        .stApp {{
+            background-image: url("data:image/png;base64,{encoded_string}");
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: #ffffff;
+        }}
+
+        /* Делаем весь обычный текст белым для читаемости на темном фоне */
+        h1, h2, h3, h4, h5, h6, p, span, label, div.stForm {{
+            color: #ffffff !important;
+        }}
+        
+        /* Убираем белый фон у блоков (forms, expanders) для прозрачности */
+        div.stForm, .streamlit-expanderHeader, .streamlit-expanderContent {{
+            background-color: transparent !important;
+        }}
+
+        /* Стилизация выпадающих списков и полей ввода */
+        div[data-baseweb="select"] div, div[data-baseweb="input"] div {{
+            background-color: rgba(255, 255, 255, 0.9) !important;
+            border-radius: 8px !important;
+        }}
+        
+        /* Текст внутри полей ввода делаем темным */
+        div[data-baseweb="select"] *, div[data-baseweb="input"] * {{
+            color: #1e1e1e !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 BACKUP_FILE = "wine_casino_backup.json"
 
 # --- ФУНКЦИИ ЗАЩИТЫ ОТ СБРОСА СЕССИИ ---
@@ -317,6 +360,7 @@ def show_final():
         st.rerun()
 
 # --- 5. РОУТИНГ ---
+apply_custom_design("background.png") # Применяем фирменный фон Simple
 if st.session_state.page == "registration": show_registration()
 elif st.session_state.page == "setup": show_setup()
 elif st.session_state.page == "betting": show_betting()

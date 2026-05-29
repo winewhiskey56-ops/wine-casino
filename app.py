@@ -14,7 +14,7 @@ def apply_custom_design(background_image_path):
     st.markdown(
         f"""
         <style>
-        /* Эффект мягкого «живого» смещения фона */
+        /* Анимация «живого» шелка */
         @keyframes luxuryMovement {{
             0% {{ background-position: 0% 50%; }}
             50% {{ background-position: 100% 50%; }}
@@ -23,39 +23,63 @@ def apply_custom_design(background_image_path):
 
         .stApp {{
             background-image: 
-                linear-gradient(135deg, rgba(141, 29, 67, 0.75) 0%, rgba(42, 4, 17, 0.9) 100%),
+                linear-gradient(135deg, rgba(141, 29, 67, 0.8) 0%, rgba(42, 4, 17, 0.95) 100%),
                 url("data:image/png;base64,{encoded_string}");
-            
-            /* Увеличиваем размер до 120%, чтобы картинке было куда плавно двигаться */
-            background-size: 120% 120%; 
+            background-size: 130% 130%; 
             background-attachment: fixed;
-            
-            /* Ускорили до 8 секунд для заметного эффекта «живого» шелка */
-            animation: luxuryMovement 8s ease-in-out infinite; 
-            color: #ffffff;
-        }}
-
-        /* Фикс для читаемости текста */
-        h1, h2, h3, h4, h5, h6, p, span, label, div.stForm {{
+            animation: luxuryMovement 12s ease-in-out infinite; 
             color: #ffffff !important;
         }}
+
+        /* ЖЕСТКИЙ ФИКС ЧИТАЕМОСТИ ВСЕХ ЭЛЕМЕНТОВ */
+        h1, h2, h3, h4, h5, h6, p, span, label, th, td {{
+            color: #ffffff !important;
+            font-weight: 500 !important;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6) !important;
+        }}
         
-        /* Прозрачные стильные подложки для блоков */
+        /* Делаем блоки (формы, expander-ы) более плотными и матовыми, чтобы фон под ними не мешал */
         div.stForm, .streamlit-expanderHeader, .streamlit-expanderContent {{
-            background-color: rgba(255, 255, 255, 0.05) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 8px !important;
-            backdrop-filter: blur(5px); /* Легкое размытие заднего фона под блоками */
+            background-color: rgba(30, 4, 12, 0.75) !important; /* Плотная винная подложка */
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }}
+        
+        /* Стилизация раскрывающихся списков при наведении */
+        .streamlit-expanderHeader:hover {{
+            background-color: rgba(255, 255, 255, 0.1) !important;
         }}
 
-        /* Контрастные поля ввода */
-        div[data-baseweb="select"] div, div[data-baseweb="input"] div {{
-            background-color: rgba(255, 255, 255, 0.95) !important;
+        /* Контрастные и яркие поля ввода (селекты, инпуты) */
+        div[data-baseweb="select"] div, div[data-baseweb="input"] div, div[data-baseweb="base-input"] {{
+            background-color: #ffffff !important;
             border-radius: 8px !important;
         }}
         
-        div[data-baseweb="select"] *, div[data-baseweb="input"] * {{
-            color: #1e1e1e !important;
+        /* Весь текст внутри инпутов — строго черный */
+        div[data-baseweb="select"] *, div[data-baseweb="input"] *, div[data-baseweb="base-input"] * {{
+            color: #1a1a1a !important;
+            font-weight: 600 !important;
+            text-shadow: none !important;
+        }}
+        
+        /* Подсветка кнопок действия, чтобы они выглядели дорого */
+        .stButton button {{
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease;
+        }}
+        
+        /* Кнопки "Принять" и "Далее" делаем золотисто-контрастными при наведении */
+        .stButton button[type="primary"] {{
+            background-color: #d4af37 !important; /* Благородное золото */
+            color: #1a1a1a !important;
+            border: none !important;
+        }}
+        .stButton button[type="primary"]:hover {{
+            background-color: #f3e5ab !important;
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.6);
         }}
         </style>
         """,

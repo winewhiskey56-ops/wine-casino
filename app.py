@@ -8,7 +8,7 @@ BACKUP_FILE = "wine_casino_backup.json"
 # --- ФУНКЦИИ ЗАЩИТЫ ОТ СБРОСА СЕССИИ ---
 def save_game_state():
     state_to_save = {}
-    for k in ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs"]:
+    for k in ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs", "history_rounds"]:
         if k in st.session_state:
             state_to_save[k] = st.session_state[k]
     
@@ -60,13 +60,46 @@ DEFAULT_COEFFS = {
 }
 
 # Инициализация дефолтных ключей сессии
-keys = ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs"]
-defs = [[], "setup_params", 1, {}, 1, 0, False, [], list(DEFAULT_COEFFS.keys()), 150, DEFAULT_COEFFS.copy()]
+keys = ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs", "history_rounds"]
+defs = [[], "setup_params", 1, {}, 1, 0, False, [], list(DEFAULT_COEFFS.keys()), 150, DEFAULT_COEFFS.copy(), []]
 for k, d in zip(keys, defs):
     if k not in st.session_state: st.session_state[k] = d
 
+# --- ДИНАМИЧЕСКИЙ ПЕРЕСЧЕТ БАЛАНСА И РЕЗУЛЬТАТОВ НА ЛЮБОМ ЭТАПЕ ---
+def recalculate_all_balances():
+    """Пересчитывает баланс каждого игрока на основе актуального стартового баланса и истории всех раундов"""
+    for player in st.session_state.players:
+        # Базовое значение берется из текущих настроек
+        current_balance = int(st.session_state.init_balance)
+        
+        # Проходим по всем завершенным раундам из истории
+        for round_data in st.session_state.history_rounds:
+            correct = round_data["correct_wine"]
+            # Ищем ставки этого игрока в сохраненном раунде
+            player_bets = round_data["bets"].get(str(player["id"]), [])
+            
+            for b in player_bets:
+                # Вычитаем саму ставку
+                current_balance -= b['amt']
+                
+                # Проверяем попадание по актуальным коэффициентам
+                if b['cat'] == "Процент алкоголя":
+                    hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
+                elif b['cat'] == "Год урожая":
+                    hit = int(b['val']) == int(correct.get(b['cat'], 0))
+                else:
+                    hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
+                
+                if hit:
+                    current_balance += b['amt'] * st.session_state.coeffs.get(b['cat'], 2)
+                    
+        player["balance"] = current_balance
+
+# Постоянно обновляем балансы при любых действиях/переходах
+recalculate_all_balances()
+
 def header():
-    st.write("### 🍷 WINE & WHISKEY")
+    st.write("### 🍷 WINE CASINO")
     st.markdown("---")
 
 # --- СТРАНИЦА 1: НАСТРОЙКА ИГРОВЫХ ПАРАМЕТРОВ ---
@@ -93,7 +126,6 @@ def show_setup_params():
             if current_coef not in [2, 3, 4, 5]:
                 current_coef = 2
             
-            # Блокировка точек выбора, если чекбокс выключен (disabled=not is_active)
             selected_coef = st.radio(
                 f"Коэффициент для: {param}",
                 options=[2, 3, 4, 5],
@@ -107,6 +139,7 @@ def show_setup_params():
     st.session_state.active_params = chosen_params
     st.session_state.coeffs = updated_coeffs
     
+    recalculate_all_balances()
     save_game_state()
     st.markdown("---")
     
@@ -130,10 +163,10 @@ def show_registration():
             st.session_state.players.append({
                 "id": player_num,
                 "name": name.strip(), 
-                "balance": st.session_state.init_balance, 
-                "round_bets": [], 
-                "balance_at_start": st.session_state.init_balance
+                "balance": int(st.session_state.init_balance), 
+                "round_bets": []
             })
+            recalculate_all_balances()
             save_game_state()
             st.rerun()
             
@@ -217,8 +250,6 @@ def show_setup_wine():
         st.rerun()
         
     if col_b2.button("К ставкам ➔", use_container_width=True, type="primary"):
-        for p in st.session_state.players: 
-            p['balance_at_start'] = p['balance']
         st.session_state.page = "betting"
         st.session_state.current_player_idx = 0
         st.session_state.bet_rows_count = 1
@@ -233,6 +264,7 @@ def show_betting():
     player = st.session_state.players[current_seat_idx]
     p_idx = current_seat_idx 
     
+    # Динамически вычисляем доступный баланс до совершения текущих ставок раунда
     spent, valid = 0, []
     for i in range(st.session_state.bet_rows_count):
         cat = st.session_state.get(f"p{p_idx}_c{i}", st.session_state.active_params[0])
@@ -243,7 +275,7 @@ def show_betting():
             valid.append({"cat": cat, "val": val, "amt": amt})
 
     st.markdown(f"## 👤 Игрок №{player['id']}: {player['name']}")
-    st.markdown(f"### Фишки: {player['balance_at_start'] - spent}")
+    st.markdown(f"### Доступно фишек: {player['balance'] - spent}")
     
     for i in range(st.session_state.bet_rows_count):
         col1, col2, col3 = st.columns([2, 2, 1])
@@ -251,9 +283,7 @@ def show_betting():
             chosen_cat = st.selectbox("Тип", st.session_state.active_params, key=f"p{p_idx}_c{i}", on_change=save_game_state)
         with col2: 
             if chosen_cat in ["Год урожая", "Процент алкоголя"]:
-                # ЗАЩИТА ОТ ТИПОВОЙ ОШИБКИ: Если в кэше лежит строка "—", заменяем её числовым дефолтом
                 current_state_val = st.session_state.get(f"p{p_idx}_v{i}")
-                
                 if chosen_cat == "Год урожая":
                     if not isinstance(current_state_val, int):
                         st.session_state[f"p{p_idx}_v{i}"] = 2020
@@ -264,7 +294,6 @@ def show_betting():
                     st.number_input("Ставка на алкоголь (%)", min_value=0.0, max_value=25.0, step=0.1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
                     st.caption("💡 Выигрыш в пределах ±0.5%")
             else:
-                # Если сменили тип с числового назад на текстовый, сбрасываем кэш в прочерк
                 if isinstance(st.session_state.get(f"p{p_idx}_v{i}"), (float, int)):
                     st.session_state[f"p{p_idx}_v{i}"] = "—"
                     
@@ -293,7 +322,6 @@ def show_betting():
             
     if col_nav2.button("Принять ход ➔", use_container_width=True, type="primary"):
         player['round_bets'] = valid
-        player['balance'] = player['balance_at_start'] - spent
         if st.session_state.current_player_idx < len(st.session_state.players) - 1:
             st.session_state.current_player_idx += 1
             st.session_state.bet_rows_count = 1
@@ -311,27 +339,23 @@ def show_results():
     display_answers = [f"{k}: {v}" for k, v in correct.items() if v != "—" and "raw" not in k]
     st.info("🎯 Ответ: " + " | ".join(display_answers))
     
-    # Расчет результатов
+    # Фиксация раунда в истории для постоянного пересчета
     if f"calculated_r_{st.session_state.round_num}" not in st.session_state:
-        for p in st.session_state.players:
-            win = 0
-            for b in p['round_bets']:
-                if b['cat'] == "Процент алкоголя":
-                    hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
-                elif b['cat'] == "Год урожая":
-                    hit = int(b['val']) == int(correct.get(b['cat'], 0))  
-                else:
-                    hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
-                
-                win += b['amt'] * st.session_state.coeffs[b['cat']] if hit else 0
-            p['balance'] = p['balance_at_start'] - sum(b['amt'] for b in p['round_bets']) + win
+        round_summary = {
+            "round_num": st.session_state.round_num,
+            "correct_wine": correct.copy(),
+            "bets": {str(p["id"]): p["round_bets"] for p in st.session_state.players}
+        }
+        st.session_state.history_rounds.append(round_summary)
         st.session_state[f"calculated_r_{st.session_state.round_num}"] = True
+        recalculate_all_balances()
         save_game_state()
 
     for p in sorted(st.session_state.players, key=lambda x: x['id']):
-        win_sum = 0
         details = []
-        for b in p['round_bets']:
+        player_bets = next((r["bets"].get(str(p["id"]), []) for r in st.session_state.history_rounds if r["round_num"] == st.session_state.round_num), p["round_bets"])
+        
+        for b in player_bets:
             if b['cat'] == "Процент алкоголя":
                 hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
             elif b['cat'] == "Год урожая":
@@ -339,8 +363,7 @@ def show_results():
             else:
                 hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
                 
-            res = b['amt'] * st.session_state.coeffs[b['cat']] if hit else 0
-            win_sum += res
+            res = b['amt'] * st.session_state.coeffs.get(b['cat'], 2) if hit else 0
             details.append(f"<p style='color:{'#28a745' if hit else '#dc3545'}; margin:0;'>{'✅' if hit else '❌'} {b['cat']}: {b['val']} | {b['amt']} ➔ {res}</p>")
         
         with st.expander(f"👤 Игрок №{p['id']}: {p['name']} | Финальный баланс: {p['balance']}"):
@@ -352,8 +375,9 @@ def show_results():
     if col_r1.button("⬅️ Переиграть раунд (Назад)", use_container_width=True):
         if f"calculated_r_{st.session_state.round_num}" in st.session_state:
             del st.session_state[f"calculated_r_{st.session_state.round_num}"]
-        for p in st.session_state.players:
-            p['balance'] = p['balance_at_start']
+        if st.session_state.history_rounds:
+            st.session_state.history_rounds.pop()
+        recalculate_all_balances()
         st.session_state.page = "betting"
         st.session_state.current_player_idx = len(st.session_state.players) - 1
         st.session_state.bet_rows_count = 1

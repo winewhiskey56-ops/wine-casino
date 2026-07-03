@@ -8,7 +8,7 @@ BACKUP_FILE = "wine_casino_backup.json"
 # --- ФУНКЦИИ ЗАЩИТЫ ОТ СБРОСА СЕССИИ ---
 def save_game_state():
     state_to_save = {}
-    for k in ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance"]:
+    for k in ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs"]:
         if k in st.session_state:
             state_to_save[k] = st.session_state[k]
     
@@ -37,21 +37,31 @@ def clear_game_backup():
         try: os.remove(BACKUP_FILE)
         except: pass
 
-# Загрузка состояния при обновлении
+# Загрузка состояния при старте/обновлении страницы
 load_game_state()
 
-# --- КОНФИГУРАЦИЯ ДАННЫХ ---
+# --- БАЗОВАЯ КОНФИГУРАЦИЯ ВАРИАНТОВ ---
 DATA = {
     "Сладость": ["сухое", "полусухое", "полусладкое", "сладкое"],
-    "Страна": ["Россия", "ЮАР", "Австралия", "Аргентина", "США", "Новая Зеландия", "Чили", "Франция", "Италия", "Испания", "Австрия", "Германия", "Португалия", "Грузия", "Армения"],
-    "Сорт винограда": ["Шардоне", "Рислинг", "Совиньон Блан", "Пино Гриджио", "Гевюрцтраминер", "Кортезе", "Гарганега", "Альбариньо", "Вердехо", "Грюнер Вельтлинер", "Каберне Совиньон", "Мерло", "Пино Нуар", "Сира/Шираз", "Темпранильо", "Санджовезе", "Мальбек", "Красностоп", "Саперави"],
-    "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"]
+    "Страна": ["Россия", "Франция", "Италия", "Испания", "Германия", "Новая Зеландия", "Чили", "Аргентина", "ЮАР", "Австрия", "Португалия", "США", "Австралия", "Грузия", "Армения"],
+    "Сорт винограда": ["Шардоне", "Совиньон Блан", "Рислинг", "Пино Гриджио", "Гевюрцтраминер", "Кортезе", "Альбариньо", "Вердехо", "Грюнер Вельтлинер", "Каберне Совиньон", "Мерло", "Пино Нуар", "Сира/Шираз", "Темпранильо", "Санджовезе", "Мальбек", "Красностоп", "Саперави"],
+    "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"],
+    "Год урожая": [],  # Числовой ввод
+    "Процент алкоголя": []  # Числовой ввод
 }
-COEFFS = {"Страна": 2, "Сорт винограда": 3, "Сладость": 2, "Выдержка": 3}
 
-# Инициализация дефолтных ключей сессии
-keys = ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance"]
-defs = [[], "registration", 1, {}, 1, 0, False, [], list(COEFFS.keys()), 150]
+DEFAULT_COEFFS = {
+    "Страна": 2, 
+    "Сорт винограда": 3, 
+    "Сладость": 2, 
+    "Выдержка": 3,
+    "Год урожая": 3,
+    "Процент алкоголя": 2
+}
+
+# Инициализация дефолтных ключей сессии, если их нет
+keys = ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs"]
+defs = [[], "setup_params", 1, {}, 1, 0, False, [], list(DEFAULT_COEFFS.keys()), 150, DEFAULT_COEFFS.copy()]
 for k, d in zip(keys, defs):
     if k not in st.session_state: st.session_state[k] = d
 
@@ -59,24 +69,47 @@ def header():
     st.write("### 🍷 WINE & WHISKEY")
     st.markdown("---")
 
-# --- СТРАНИЦА 1: РЕГИСТРАЦИЯ И НАСТРОЙКИ ---
+# --- СТРАНИЦА 1: НАСТРОЙКА ИГРОВЫХ ПАРАМЕТРОВ ---
+def show_setup_params():
+    header()
+    st.markdown("<h2 style='text-align: center;'>⚙️ 1. Настройка параметров игры</h2>", unsafe_allow_html=True)
+    
+    st.session_state.init_balance = st.number_input("Стартовый баланс фишек у игроков:", min_value=10, value=int(st.session_state.init_balance), step=10)
+    
+    st.markdown("### Выберите играемые параметры и настройте их мультипликаторы:")
+    
+    chosen_params = []
+    updated_coeffs = st.session_state.coeffs.copy()
+    
+    for param in list(DEFAULT_COEFFS.keys()):
+        col_check, col_coeff = st.columns([2, 1])
+        with col_check:
+            is_active = st.checkbox(param, value=(param in st.session_state.active_params), key=f"check_{param}")
+            if is_active:
+                chosen_params.append(param)
+        with col_coeff:
+            current_coef = st.session_state.coeffs.get(param, DEFAULT_COEFFS[param])
+            updated_coeffs[param] = st.number_input(f"Множитель ({param})", min_value=1, value=int(current_coef), step=1, key=f"coef_{param}", label_visibility="collapsed")
+            
+    st.session_state.active_params = chosen_params
+    st.session_state.coeffs = updated_coeffs
+    
+    save_game_state()
+    st.markdown("---")
+    
+    if st.button("Далее к регистрации участников ➔", use_container_width=True, type="primary"):
+        if not st.session_state.active_params:
+            st.error("Ошибка: выберите хотя бы один играемый параметр!")
+        else:
+            st.session_state.page = "registration"
+            save_game_state()
+            st.rerun()
+
+# --- СТРАНИЦА 2: РЕГИСТРАЦИЯ УЧАСТНИКОВ ---
 def show_registration():
     header()
-    st.markdown("<h2 style='text-align: center;'>📝 Настройки и Регистрация</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>📝 2. Регистрация участников</h2>", unsafe_allow_html=True)
     
-    # Кастомизация параметров игры и начальной ставки
-    st.markdown("### ⚙️ Параметры сессии")
-    st.session_state.init_balance = st.number_input("Начальный баланс фишек:", min_value=10, value=int(st.session_state.init_balance), step=10)
-    
-    st.write("Выберите играемые параметры:")
-    chosen_params = []
-    for param in list(COEFFS.keys()):
-        if st.checkbox(param, value=(param in st.session_state.active_params)):
-            chosen_params.append(param)
-    st.session_state.active_params = chosen_params
-
-    st.markdown("---")
-    st.markdown("### 👥 Регистрация участников")
     with st.form("reg_form", clear_on_submit=True):
         name = st.text_input("Имя игрока:")
         if st.form_submit_button("Добавить", use_container_width=True) and name.strip():
@@ -92,42 +125,48 @@ def show_registration():
             st.rerun()
             
     st.session_state.shuffle_players = st.checkbox(
-        "🔀 Перемешивать участников каждый раунд", 
+        "🔀 Перемешивать участников случайным образом каждый раунд", 
         value=st.session_state.shuffle_players
     )
     
     if st.session_state.players:
-        st.markdown("### Список игроков:")
+        st.markdown("### Список гостей:")
         for p in st.session_state.players: 
             st.write(f"Игрок №{p['id']}: **{p['name']}** ({p['balance']} фишек)")
             
-        if st.button("Начать игру ➔", use_container_width=True, type="primary"):
-            if not st.session_state.active_params:
-                st.error("Выберите хотя бы один играемый параметр вина!")
-                return
-            st.session_state.page = "setup"
-            if st.session_state.shuffle_players:
-                st.session_state.shuffle_order = random.sample(range(len(st.session_state.players)), len(st.session_state.players))
-            else:
-                st.session_state.shuffle_order = list(range(len(st.session_state.players)))
-            save_game_state()
-            st.rerun()
+    st.markdown("---")
+    col_nav1, col_nav2 = st.columns(2)
+    
+    if col_nav1.button("⬅️ Назад в параметры", use_container_width=True):
+        st.session_state.page = "setup_params"
+        st.rerun()
+        
+    if col_nav2.button("Начать игру ➔", use_container_width=True, type="primary"):
+        if not st.session_state.players:
+            st.error("Добавьте хотя бы одного игрока!")
+            return
+        st.session_state.page = "setup_wine"
+        if st.session_state.shuffle_players:
+            st.session_state.shuffle_order = random.sample(range(len(st.session_state.players)), len(st.session_state.players))
+        else:
+            st.session_state.shuffle_order = list(range(len(st.session_state.players)))
+        save_game_state()
+        st.rerun()
 
-# --- СТРАНИЦА 2: ВВОД ВИHА ---
-def show_setup():
+# --- СТРАНИЦА 3: ВВОД ПАРАМЕТРОВ ЗАГАДАННОГО ВИНА ---
+def show_setup_wine():
     header()
     st.markdown(f"### 🍷 Раунд №{st.session_state.round_num}")
-    st.markdown("#### Загадайте параметры вина для текущего раунда:")
+    st.markdown("#### Загадайте параметры скрытого образца:")
     
     c1, c2 = st.columns(2)
     
-    # Рендерим только выбранные перед игрой параметры
     if "Страна" in st.session_state.active_params:
         with c1:
             old_country = st.session_state.current_wine.get("Страna_raw", "—")
             options = ["—"] + DATA["Страна"] + ["📝 Свой вариант..."]
             country_select = st.selectbox("Страна:", options, index=options.index(old_country) if old_country in options else 0)
-            st.session_state.current_wine["Страна"] = st.text_input("Введите страну вручную:", value=st.session_state.current_wine.get("Страна", "")).strip() if country_select == "📝 Свой variant..." else country_select
+            st.session_state.current_wine["Страна"] = st.text_input("Введите страну вручную:", value=st.session_state.current_wine.get("Страна", "")).strip() if country_select == "📝 Свой вариант..." else country_select
             st.session_state.current_wine["Страna_raw"] = country_select
 
     if "Сорт винограда" in st.session_state.active_params:
@@ -145,12 +184,20 @@ def show_setup():
     if "Выдержка" in st.session_state.active_params:
         with c2:
             st.session_state.current_wine["Выдержка"] = st.selectbox("Выдержка:", ["—"] + DATA["Выдержка"], index=(["—"] + DATA["Выдержка"]).index(st.session_state.current_wine.get("Выдержка", "—")) if st.session_state.current_wine.get("Выдержка") in (["—"] + DATA["Выдержка"]) else 0)
+            
+    if "Год урожая" in st.session_state.active_params:
+        with c1:
+            st.session_state.current_wine["Год урожая"] = st.number_input("Год урожая (эталон):", min_value=1800, max_value=2026, value=int(st.session_state.current_wine.get("Год урожая", 2020)), step=1)
+
+    if "Процент алкоголя" in st.session_state.active_params:
+        with c2:
+            st.session_state.current_wine["Процент алкоголя"] = st.number_input("Процент алкоголя (эталон %):", min_value=0.0, max_value=25.0, value=float(st.session_state.current_wine.get("Процент алкоголя", 12.5)), step=0.1)
         
     save_game_state()
     st.markdown("---")
     
     col_b1, col_b2 = st.columns(2)
-    if col_b1.button("⬅️ Назад к настройкам", use_container_width=True):
+    if col_b1.button("⬅️ Назад к регистрации", use_container_width=True):
         st.session_state.page = "registration"
         st.rerun()
         
@@ -163,7 +210,7 @@ def show_setup():
         save_game_state()
         st.rerun()
 
-# --- СТРАНИЦА 3: ПООЧЕРЕДНЫЙ ПРИЕМ СТАВОК ---
+# --- СТРАНИЦА 4: ПООЧЕРЕДНЫЙ ПРИЕМ СТАВОК ---
 def show_betting():
     header()
     
@@ -188,12 +235,20 @@ def show_betting():
         with col1: 
             chosen_cat = st.selectbox("Тип", st.session_state.active_params, key=f"p{p_idx}_c{i}", on_change=save_game_state)
         with col2: 
-            current_options = ["—"] + DATA[chosen_cat]
-            correct_custom_val = st.session_state.current_wine.get(chosen_cat, "—")
-            if correct_custom_val != "—" and correct_custom_val not in current_options:
-                current_options.append(correct_custom_val)
+            if chosen_cat in ["Год урожая", "Процент алкоголя"]:
+                # Для числовых полей делаем ручной ввод значения ставки
+                if chosen_cat == "Год урожая":
+                    st.number_input("Ставка на год", min_value=1800, max_value=2026, step=1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
+                else:
+                    st.number_input("Ставка на алкоголь (%)", min_value=0.0, max_value=25.0, step=0.1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
+            else:
+                # Для категориальных подтягиваем списки
+                current_options = ["—"] + DATA[chosen_cat]
+                correct_custom_val = st.session_state.current_wine.get(chosen_cat, "—")
+                if correct_custom_val != "—" and correct_custom_val not in current_options:
+                    current_options.append(correct_custom_val)
+                st.selectbox("Ставка", current_options, key=f"p{p_idx}_v{i}", on_change=save_game_state)
                 
-            st.selectbox("Ставка", current_options, key=f"p{p_idx}_v{i}", on_change=save_game_state)
         with col3: 
             st.number_input("Сумма", min_value=0, step=10, key=f"p{p_idx}_a{i}", on_change=save_game_state)
             
@@ -208,7 +263,7 @@ def show_betting():
             st.session_state.current_player_idx -= 1
             st.session_state.bet_rows_count = 1
         else:
-            st.session_state.page = "setup"
+            st.session_state.page = "setup_wine"
         st.rerun()
             
     if col_nav2.button("Принять ход ➔", use_container_width=True, type="primary"):
@@ -222,7 +277,7 @@ def show_betting():
         save_game_state()
         st.rerun()
 
-# --- СТРАНИЦА 4: РЕЗУЛЬТАТЫ РАУНДА ---
+# --- СТРАНИЦА 5: РЕЗУЛЬТАТЫ РАУНДА ---
 def show_results():
     header()
     correct = st.session_state.current_wine
@@ -236,8 +291,15 @@ def show_results():
         for p in st.session_state.players:
             win = 0
             for b in p['round_bets']:
-                hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
-                win += b['amt'] * COEFFS[b['cat']] if hit else 0
+                # Логика проверки попадания
+                if b['cat'] == "Процент алкоголя":
+                    hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
+                elif b['cat'] == "Год урожая":
+                    hit = abs(int(b['val']) - int(correct.get(b['cat'], 0))) <= 1
+                else:
+                    hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
+                
+                win += b['amt'] * st.session_state.coeffs[b['cat']] if hit else 0
             p['balance'] = p['balance_at_start'] - sum(b['amt'] for b in p['round_bets']) + win
         st.session_state[f"calculated_r_{st.session_state.round_num}"] = True
         save_game_state()
@@ -246,8 +308,14 @@ def show_results():
         win_sum = 0
         details = []
         for b in p['round_bets']:
-            hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
-            res = b['amt'] * COEFFS[b['cat']] if hit else 0
+            if b['cat'] == "Процент алкоголя":
+                hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
+            elif b['cat'] == "Год урожая":
+                hit = abs(int(b['val']) - int(correct.get(b['cat'], 0))) <= 1
+            else:
+                hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
+                
+            res = b['amt'] * st.session_state.coeffs[b['cat']] if hit else 0
             win_sum += res
             details.append(f"<p style='color:{'#28a745' if hit else '#dc3545'}; margin:0;'>{'✅' if hit else '❌'} {b['cat']}: {b['val']} | {b['amt']} ➔ {res}</p>")
         
@@ -272,7 +340,7 @@ def show_results():
         if f"calculated_r_{st.session_state.round_num}" in st.session_state:
             del st.session_state[f"calculated_r_{st.session_state.round_num}"]
         st.session_state.round_num += 1
-        st.session_state.page = "setup"
+        st.session_state.page = "setup_wine"
         st.session_state.current_wine = {}
         if st.session_state.shuffle_players:
             st.session_state.shuffle_order = random.sample(range(len(st.session_state.players)), len(st.session_state.players))
@@ -292,7 +360,7 @@ def show_results():
             save_game_state()
             st.rerun()
 
-# --- СТРАНИЦА 5: ФИНАЛ ---
+# --- СТРАНИЦА 6: ФИНАЛ ---
 def show_final():
     header()
     st.markdown("<h1 style='text-align: center;'>🏆 Финал</h1>", unsafe_allow_html=True)
@@ -312,9 +380,10 @@ def show_final():
         st.session_state.clear()
         st.rerun()
 
-# --- РОУТИНГ ---
-if st.session_state.page == "registration": show_registration()
-elif st.session_state.page == "setup": show_setup()
+# --- РОУТИНГ ЭКРАНОВ ---
+if st.session_state.page == "setup_params": show_setup_params()
+elif st.session_state.page == "registration": show_registration()
+elif st.session_state.page == "setup_wine": show_setup_wine()
 elif st.session_state.page == "betting": show_betting()
 elif st.session_state.page == "results": show_results()
 elif st.session_state.page == "final": show_final()

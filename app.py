@@ -37,7 +37,7 @@ def clear_game_backup():
         try: os.remove(BACKUP_FILE)
         except: pass
 
-# Загрузка состояния при старте/обновлении страницы
+# Загрузка состояния при старте
 load_game_state()
 
 # --- БАЗОВАЯ КОНФИГУРАЦИЯ ВАРИАНТОВ ---
@@ -59,7 +59,7 @@ DEFAULT_COEFFS = {
     "Процент алкоголя": 2
 }
 
-# Инициализация дефолтных ключей сессии, если их нет
+# Инициализация дефолтных ключей сессии
 keys = ["players", "page", "round_num", "current_wine", "bet_rows_count", "current_player_idx", "shuffle_players", "shuffle_order", "active_params", "init_balance", "coeffs"]
 defs = [[], "setup_params", 1, {}, 1, 0, False, [], list(DEFAULT_COEFFS.keys()), 150, DEFAULT_COEFFS.copy()]
 for k, d in zip(keys, defs):
@@ -84,22 +84,22 @@ def show_setup_params():
     for param in list(DEFAULT_COEFFS.keys()):
         col_check, col_coeff = st.columns([4, 5])
         with col_check:
-            st.write("") # Небольшой отступ для выравнивания с радио-кнопками
+            st.write("") 
             is_active = st.checkbox(param, value=(param in st.session_state.active_params), key=f"check_{param}")
             if is_active:
                 chosen_params.append(param)
         with col_coeff:
             current_coef = st.session_state.coeffs.get(param, DEFAULT_COEFFS[param])
-            # Защита на случай, если старый коэффициент выпал за рамки [2, 3, 4, 5]
             if current_coef not in [2, 3, 4, 5]:
                 current_coef = 2
             
-            # Выбор точек радио-кнопками горизонтально
+            # Блокировка точек выбора, если чекбокс выключен (disabled=not is_active)
             selected_coef = st.radio(
                 f"Коэффициент для: {param}",
                 options=[2, 3, 4, 5],
                 index=[2, 3, 4, 5].index(current_coef),
                 horizontal=True,
+                disabled=not is_active,
                 key=f"coef_radio_{param}"
             )
             updated_coeffs[param] = selected_coef
@@ -152,6 +152,7 @@ def show_registration():
     
     if col_nav1.button("⬅️ Назад в параметры", use_container_width=True):
         st.session_state.page = "setup_params"
+        save_game_state()
         st.rerun()
         
     if col_nav2.button("Начать игру ➔", use_container_width=True, type="primary"):
@@ -237,7 +238,7 @@ def show_betting():
         cat = st.session_state.get(f"p{p_idx}_c{i}", st.session_state.active_params[0])
         val = st.session_state.get(f"p{p_idx}_v{i}", "—")
         amt = st.session_state.get(f"p{p_idx}_a{i}", 0)
-        if val != "—" and amt > 0: 
+        if val != "—" and val != "" and amt > 0: 
             spent += amt
             valid.append({"cat": cat, "val": val, "amt": amt})
 
@@ -250,12 +251,23 @@ def show_betting():
             chosen_cat = st.selectbox("Тип", st.session_state.active_params, key=f"p{p_idx}_c{i}", on_change=save_game_state)
         with col2: 
             if chosen_cat in ["Год урожая", "Процент алкоголя"]:
+                # ЗАЩИТА ОТ ТИПОВОЙ ОШИБКИ: Если в кэше лежит строка "—", заменяем её числовым дефолтом
+                current_state_val = st.session_state.get(f"p{p_idx}_v{i}")
+                
                 if chosen_cat == "Год урожая":
+                    if not isinstance(current_state_val, int):
+                        st.session_state[f"p{p_idx}_v{i}"] = 2020
                     st.number_input("Ставка на год (точно)", min_value=1800, max_value=2026, step=1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
                 else:
+                    if not isinstance(current_state_val, (float, int)):
+                        st.session_state[f"p{p_idx}_v{i}"] = 12.0
                     st.number_input("Ставка на алкоголь (%)", min_value=0.0, max_value=25.0, step=0.1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
                     st.caption("💡 Выигрыш в пределах ±0.5%")
             else:
+                # Если сменили тип с числового назад на текстовый, сбрасываем кэш в прочерк
+                if isinstance(st.session_state.get(f"p{p_idx}_v{i}"), (float, int)):
+                    st.session_state[f"p{p_idx}_v{i}"] = "—"
+                    
                 current_options = ["—"] + DATA[chosen_cat]
                 correct_custom_val = st.session_state.current_wine.get(chosen_cat, "—")
                 if correct_custom_val != "—" and correct_custom_val not in current_options:
@@ -304,11 +316,10 @@ def show_results():
         for p in st.session_state.players:
             win = 0
             for b in p['round_bets']:
-                # Логика проверки попадания
                 if b['cat'] == "Процент алкоголя":
                     hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
                 elif b['cat'] == "Год урожая":
-                    hit = int(b['val']) == int(correct.get(b['cat'], 0))  # Строгое совпадение
+                    hit = int(b['val']) == int(correct.get(b['cat'], 0))  
                 else:
                     hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
                 

@@ -46,8 +46,8 @@ DATA = {
     "Страна": ["Россия", "Франция", "Италия", "Испания", "Германия", "Новая Зеландия", "Чили", "Аргентина", "ЮАР", "Австрия", "Португалия", "США", "Австралия", "Грузия", "Армения"],
     "Сорт винограда": ["Шардоне", "Совиньон Блан", "Рислинг", "Пино Гриджио", "Гевюрцтраминер", "Кортезе", "Альбариньо", "Вердехо", "Грюнер Вельтлинер", "Каберне Совиньон", "Мерло", "Пино Нуар", "Сира/Шираз", "Темпранильо", "Санджовезе", "Мальбек", "Красностоп", "Саперави"],
     "Выдержка": ["выдержано в дубе", "не выдержано в дубе", "выдержано на осадке"],
-    "Год урожая": [],  # Числовой ввод
-    "Процент алкоголя": []  # Числовой ввод
+    "Год урожая": [],  
+    "Процент алкоголя": []  
 }
 
 DEFAULT_COEFFS = {
@@ -76,20 +76,33 @@ def show_setup_params():
     
     st.session_state.init_balance = st.number_input("Стартовый баланс фишек у игроков:", min_value=10, value=int(st.session_state.init_balance), step=10)
     
-    st.markdown("### Выберите играемые параметры и настройте их мультипликаторы:")
+    st.markdown("### Выберите играемые параметры и коэффициент умножения:")
     
     chosen_params = []
     updated_coeffs = st.session_state.coeffs.copy()
     
     for param in list(DEFAULT_COEFFS.keys()):
-        col_check, col_coeff = st.columns([2, 1])
+        col_check, col_coeff = st.columns([4, 5])
         with col_check:
+            st.write("") # Небольшой отступ для выравнивания с радио-кнопками
             is_active = st.checkbox(param, value=(param in st.session_state.active_params), key=f"check_{param}")
             if is_active:
                 chosen_params.append(param)
         with col_coeff:
             current_coef = st.session_state.coeffs.get(param, DEFAULT_COEFFS[param])
-            updated_coeffs[param] = st.number_input(f"Множитель ({param})", min_value=1, value=int(current_coef), step=1, key=f"coef_{param}", label_visibility="collapsed")
+            # Защита на случай, если старый коэффициент выпал за рамки [2, 3, 4, 5]
+            if current_coef not in [2, 3, 4, 5]:
+                current_coef = 2
+            
+            # Выбор точек радио-кнопками горизонтально
+            selected_coef = st.radio(
+                f"Коэффициент для: {param}",
+                options=[2, 3, 4, 5],
+                index=[2, 3, 4, 5].index(current_coef),
+                horizontal=True,
+                key=f"coef_radio_{param}"
+            )
+            updated_coeffs[param] = selected_coef
             
     st.session_state.active_params = chosen_params
     st.session_state.coeffs = updated_coeffs
@@ -192,6 +205,7 @@ def show_setup_wine():
     if "Процент алкоголя" in st.session_state.active_params:
         with c2:
             st.session_state.current_wine["Процент алкоголя"] = st.number_input("Процент алкоголя (эталон %):", min_value=0.0, max_value=25.0, value=float(st.session_state.current_wine.get("Процент алкоголя", 12.5)), step=0.1)
+            st.caption("ℹ️ Напоминание: выигрывают ставки с погрешностью ±0.5%")
         
     save_game_state()
     st.markdown("---")
@@ -236,13 +250,12 @@ def show_betting():
             chosen_cat = st.selectbox("Тип", st.session_state.active_params, key=f"p{p_idx}_c{i}", on_change=save_game_state)
         with col2: 
             if chosen_cat in ["Год урожая", "Процент алкоголя"]:
-                # Для числовых полей делаем ручной ввод значения ставки
                 if chosen_cat == "Год урожая":
-                    st.number_input("Ставка на год", min_value=1800, max_value=2026, step=1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
+                    st.number_input("Ставка на год (точно)", min_value=1800, max_value=2026, step=1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
                 else:
                     st.number_input("Ставка на алкоголь (%)", min_value=0.0, max_value=25.0, step=0.1, key=f"p{p_idx}_v{i}", on_change=save_game_state)
+                    st.caption("💡 Выигрыш в пределах ±0.5%")
             else:
-                # Для категориальных подтягиваем списки
                 current_options = ["—"] + DATA[chosen_cat]
                 correct_custom_val = st.session_state.current_wine.get(chosen_cat, "—")
                 if correct_custom_val != "—" and correct_custom_val not in current_options:
@@ -295,7 +308,7 @@ def show_results():
                 if b['cat'] == "Процент алкоголя":
                     hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
                 elif b['cat'] == "Год урожая":
-                    hit = abs(int(b['val']) - int(correct.get(b['cat'], 0))) <= 1
+                    hit = int(b['val']) == int(correct.get(b['cat'], 0))  # Строгое совпадение
                 else:
                     hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
                 
@@ -311,7 +324,7 @@ def show_results():
             if b['cat'] == "Процент алкоголя":
                 hit = abs(float(b['val']) - float(correct.get(b['cat'], 0))) <= 0.5
             elif b['cat'] == "Год урожая":
-                hit = abs(int(b['val']) - int(correct.get(b['cat'], 0))) <= 1
+                hit = int(b['val']) == int(correct.get(b['cat'], 0))
             else:
                 hit = str(b['val']).lower().strip() == str(correct.get(b['cat'])).lower().strip()
                 
